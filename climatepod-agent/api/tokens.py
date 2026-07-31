@@ -6,8 +6,8 @@ import math
 import re
 from dataclasses import dataclass
 
-from constants import TOKEN_ESTIMATION
-from parser import ParsedConversation, Turn
+from .constants import TOKEN_ESTIMATION
+from .parser import ParsedConversation, Turn
 
 _CJK_RE = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]")
 _LATIN_RE = re.compile(r"[A-Za-z0-9\s.,!?;:'\"()\[\]{}]")
@@ -17,10 +17,13 @@ _LATIN_RE = re.compile(r"[A-Za-z0-9\s.,!?;:'\"()\[\]{}]")
 class TokenEstimate:
     input_tokens: int
     output_tokens: int
+    unattributed_tokens: int = 0
+    measurement_quality: str = "generic_estimate"
+    hidden_or_system_tokens_included: bool = False
 
     @property
     def total_tokens(self) -> int:
-        return self.input_tokens + self.output_tokens
+        return self.input_tokens + self.output_tokens + self.unattributed_tokens
 
 
 def _count_char_types(text: str) -> tuple[int, int, int]:
@@ -47,13 +50,25 @@ def estimate_conversation_tokens(
     per_turn: list[tuple[Turn, int]] = []
     input_tokens = 0
     output_tokens = 0
+    unattributed_tokens = 0
 
     for turn in conversation.turns:
+        if turn.role == "ui":
+            continue
         count = estimate_tokens_for_text(turn.content, provider)
         per_turn.append((turn, count))
         if turn.role == "user":
             input_tokens += count
-        else:
+        elif turn.role == "assistant":
             output_tokens += count
+        else:
+            unattributed_tokens += count
 
-    return TokenEstimate(input_tokens=input_tokens, output_tokens=output_tokens), per_turn
+    return (
+        TokenEstimate(
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            unattributed_tokens=unattributed_tokens,
+        ),
+        per_turn,
+    )

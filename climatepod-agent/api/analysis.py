@@ -5,9 +5,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from parser import ParsedConversation
-from provider import ProviderInfo
-from tokens import TokenEstimate
+from .parser import ParsedConversation
+from .provider import ProviderInfo
+from .tokens import TokenEstimate
 
 
 @dataclass
@@ -60,7 +60,10 @@ def analyze_prompt(
     provider_info: ProviderInfo,
 ) -> PromptAnalysis:
     """규칙 기반 1차 분석. 추후 LLM/점수 모델로 교체 가능."""
-    full_text = "\n".join(t.content for t in conversation.turns)
+    full_text = "\n".join(
+        t.content for t in conversation.turns if t.role in ("user", "assistant")
+    )
+    user_text = "\n".join(t.content for t in conversation.turns if t.role == "user")
     task_type = _detect_task_type(full_text)
     complexity = _detect_complexity(conversation, tokens)
 
@@ -86,7 +89,13 @@ def analyze_prompt(
     if not improvements:
         strengths.append("지금 상태도 충분히 읽기 좋은 구조예요.")
 
-    if not suggestions:
+    has_output_contract = re.search(
+        r"표|목록|불릿|JSON|Markdown|마크다운|문단|문장|글자|분량|형식|구성|"
+        r"한국어|영어|존댓말|말투|코드|파일",
+        user_text,
+        re.I,
+    )
+    if not suggestions and not has_output_contract:
         suggestions.append("원하는 출력 형식(표, 목록, 분량)을 한 줄로 명시하면 답변 품질이 올라가요.")
 
     return PromptAnalysis(

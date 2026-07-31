@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
-from analysis import analyze_prompt
-from ecologits import EcoLogitsError, fetch_carbon_impact
-from parser import ParsedConversation, parse_conversation
-from provider import detect_provider
-from report import AnalysisContext, build_report, build_usage_guide
-from tokens import estimate_conversation_tokens
+import logging
+
+from .analysis import analyze_prompt
+from .ecologits import EcoLogitsError, fetch_carbon_impact
+from .evaluation import evaluate_efficiency
+from .gemini_evaluator import (
+    GeminiEvaluationError,
+    evaluate_efficiency_with_gemini,
+    is_gemini_configured,
+)
+from .parser import parse_conversation
+from .provider import detect_provider
+from .report import AnalysisContext, build_report, build_usage_guide
+from .tokens import estimate_conversation_tokens
+
+logger = logging.getLogger(__name__)
 
 
 async def analyze_conversation_text(text: str) -> str:
@@ -25,6 +35,22 @@ async def analyze_conversation_text(text: str) -> str:
     provider_info = detect_provider(text)
     tokens, _ = estimate_conversation_tokens(conversation, provider_info.provider)
     prompt_analysis = analyze_prompt(conversation, tokens, provider_info)
+    if is_gemini_configured():
+        try:
+            efficiency_evaluation = await evaluate_efficiency_with_gemini(
+                conversation,
+                tokens,
+                provider_info,
+            )
+        except GeminiEvaluationError as exc:
+            logger.warning("Gemini evaluation failed; using fallback: %s", exc)
+            efficiency_evaluation = evaluate_efficiency(conversation, tokens)
+            efficiency_evaluation.limitations.insert(
+                0,
+                "Gemini API 평가를 완료하지 못해 규칙 기반 예비 평가로 전환했습니다."
+            )
+    else:
+        efficiency_evaluation = evaluate_efficiency(conversation, tokens)
 
     carbon = None
     carbon_error = False
@@ -42,6 +68,7 @@ async def analyze_conversation_text(text: str) -> str:
         provider_info=provider_info,
         tokens=tokens,
         prompt_analysis=prompt_analysis,
+        efficiency_evaluation=efficiency_evaluation,
         carbon=carbon,
         carbon_error=carbon_error,
     )

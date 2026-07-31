@@ -10,7 +10,7 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from pipeline import analyze_conversation_text
+from .pipeline import analyze_conversation_text
 
 app = FastAPI()
 

@@ -7,7 +7,7 @@ from typing import Any
 
 import httpx
 
-from constants import (
+from .constants import (
     DEFAULT_REQUEST_LATENCY_SEC,
     ECOLOGITS_API_URL,
     ELECTRICITY_MIX_ZONE,
@@ -64,8 +64,11 @@ async def fetch_carbon_impact(
         "electricity_mix_zone": electricity_mix_zone,
     }
 
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        response = await client.post(ECOLOGITS_API_URL, json=payload)
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(ECOLOGITS_API_URL, json=payload)
+    except httpx.HTTPError as exc:
+        raise EcoLogitsError(f"EcoLogits request failed: {exc}") from exc
 
     if response.status_code >= 400:
         raise EcoLogitsError(f"EcoLogits API error {response.status_code}: {response.text[:200]}")
