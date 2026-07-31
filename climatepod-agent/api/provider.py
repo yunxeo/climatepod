@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from constants import DEFAULT_MODEL_BY_PROVIDER
+from .constants import DEFAULT_MODEL_BY_PROVIDER
 
 # EcoLogits provider 식별자
 ProviderId = str
