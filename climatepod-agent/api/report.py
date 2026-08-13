@@ -50,6 +50,16 @@ def _table_cell(value: str) -> str:
     return value.replace("|", r"\|").replace("\r\n", "<br>").replace("\n", "<br>")
 
 
+_STRUCTURED_EVALUATORS = {
+    "anthropic_structured": "Claude 구조화 평가",
+    "gemini_structured": "Gemini 구조화 평가",
+}
+
+
+def _is_structured_evaluation(method: str) -> bool:
+    return method in _STRUCTURED_EVALUATORS
+
+
 class EnvironmentReportSection(ReportSection):
     """1. 환경 영향 리포트 (최우선)"""
 
@@ -164,11 +174,8 @@ class EfficiencyScoreSection(ReportSection):
 
     def render(self, ctx: AnalysisContext) -> str:
         evaluation = ctx.efficiency_evaluation
-        heading = (
-            "### AI 효율성 평가"
-            if evaluation.method == "gemini_structured"
-            else "### AI 효율성 예비 평가"
-        )
+        is_structured = _is_structured_evaluation(evaluation.method)
+        heading = "### AI 효율성 평가" if is_structured else "### AI 효율성 예비 평가"
         lines = [heading, ""]
 
         if evaluation.overall_score is None:
@@ -179,11 +186,7 @@ class EfficiencyScoreSection(ReportSection):
                 ]
             )
         else:
-            score_label = (
-                "AI 효율성 점수"
-                if evaluation.method == "gemini_structured"
-                else "AI 효율성 예비 점수"
-            )
+            score_label = "AI 효율성 점수" if is_structured else "AI 효율성 예비 점수"
             lines.extend(
                 [
                     f"이번 대화의 {score_label}는 **{evaluation.overall_score:.1f}점**이에요.",
@@ -200,8 +203,8 @@ class EfficiencyScoreSection(ReportSection):
             lines.append(f"| {CATEGORY_LABELS[category]} | {score_label} |")
 
         method_label = "규칙 기반 예비 평가"
-        if evaluation.method == "gemini_structured":
-            method_label = "Gemini 구조화 평가"
+        if is_structured:
+            method_label = _STRUCTURED_EVALUATORS[evaluation.method]
             if evaluation.evaluator_model:
                 method_label += f" (`{evaluation.evaluator_model}`)"
 
@@ -251,12 +254,12 @@ class PromptInsightsSection(ReportSection):
 
         strengths = (
             evaluation.strengths
-            if evaluation.method == "gemini_structured" and evaluation.strengths
+            if _is_structured_evaluation(evaluation.method) and evaluation.strengths
             else pa.strengths
         )
         improvements = (
             evaluation.improvements
-            if evaluation.method == "gemini_structured" and evaluation.improvements
+            if _is_structured_evaluation(evaluation.method) and evaluation.improvements
             else pa.improvements
         )
 
@@ -279,7 +282,7 @@ class SuggestionsSection(ReportSection):
 
     def render(self, ctx: AnalysisContext) -> str:
         pa = ctx.prompt_analysis
-        if ctx.efficiency_evaluation.method == "gemini_structured":
+        if _is_structured_evaluation(ctx.efficiency_evaluation.method):
             return ""
         if not pa.suggestions:
             return ""

@@ -31,13 +31,15 @@ climatepod/
 1. 원문을 발화 단위로 분리하고 `T1`, `T2` 형식의 근거 ID를 부여합니다.
 2. 화자 라벨이 명시되면 높은 신뢰도, 빈 줄 교대 추정이면 낮은 신뢰도로 기록합니다.
 3. UI 문구는 토큰 계산에서 제외하고, 역할 미확정 구간은 별도 토큰으로 표시합니다.
-4. `GEMINI_API_KEY`가 있으면 Gemini 구조화 출력으로 `evaluation_criteria.md`의 18개 항목을 평가합니다.
-5. 키가 없거나 Gemini 호출·검증이 실패하면 규칙 기반 예비 평가로 자동 전환합니다.
+4. `ANTHROPIC_API_KEY`가 있으면 Claude 구조화 출력으로 `evaluation_criteria.md`의 18개 항목을 평가합니다.
+5. Claude 키가 없을 때만 기존 Gemini 키를 자동 감지하며, 선택된 외부 평가 호출·검증이 실패하면 규칙 기반 예비 평가로 전환합니다.
 6. 적용 가능한 항목만으로 영역 점수와 종합 점수를 재정규화합니다.
 7. 화자 분리 신뢰도가 낮으면 단일 종합 점수를 보류합니다.
 8. 환경 영향과 함께 Markdown 리포트로 렌더링합니다.
 
-Gemini 연결 시 의미 기반 평가를 사용합니다. 현재 대화 분리는 코드 기반이므로 에피소드 경계와 복잡한 인용 대화는 여전히 보수적으로 처리합니다. 원자료가 없는 사실 정확성은 Gemini 연결 여부와 관계없이 `not_applicable`로 제외합니다.
+Claude 또는 Gemini 연결 시 의미 기반 평가를 사용합니다. 현재 대화 분리는 코드 기반이므로 에피소드 경계와 복잡한 인용 대화는 여전히 보수적으로 처리합니다. 원자료가 없는 사실 정확성은 외부 평가기 연결 여부와 관계없이 `not_applicable`로 제외합니다.
+
+`EVALUATOR_PROVIDER=auto`(기본)는 Anthropic 키 → Gemini 키 → 규칙 기반 순으로 선택합니다. 운영 배포에서는 `anthropic`을 명시해 지급받은 키만 사용하는 것을 권장합니다. 외부 평가기를 사용하면 붙여넣은 대화 원문 전체가 선택된 API 공급자에게 전송됩니다.
 
 ## 외부 명세 반영 상태
 
@@ -51,8 +53,9 @@ Gemini 연결 시 의미 기반 평가를 사용합니다. 현재 대화 분리�
 - `generic_estimate` 측정 품질과 숨겨진 토큰 미포함 표시
 - 정확성 근거가 없을 때 점수 추정 금지
 - 개선점 최대 3개 원칙
-- Google AI Studio Gemini API 구조화 평가
-- Gemini 미설정·오류 시 규칙 기반 fallback
+- Anthropic Claude API 구조화 평가
+- 기존 Google AI Studio Gemini API 선택 지원
+- 외부 평가기 미설정·오류 시 규칙 기반 fallback
 
 후속 구현:
 
@@ -68,8 +71,9 @@ Gemini 연결 시 의미 기반 평가를 사용합니다. 현재 대화 분리�
 cd climatepod-agent
 pip install -r requirements.txt
 $env:AGENT_SECRET_KEY = "test-key"
-$env:GEMINI_API_KEY = "AI Studio에서 발급한 키"
-$env:GEMINI_MODEL = "gemini-2.5-flash"
+$env:EVALUATOR_PROVIDER = "anthropic"
+$env:ANTHROPIC_API_KEY = "플랫폼에서 지급받은 키"
+$env:ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
 uvicorn api.index:app --port 8000
 ```
 
@@ -80,20 +84,23 @@ curl.exe -N -X POST http://localhost:8000/chat `
   -d '{"message":"User: 세 문장으로 요약해줘`nAssistant: 첫째 문장입니다."}'
 ```
 
-`GEMINI_MODEL`은 선택 항목이며 생략하면 `gemini-2.5-flash`를 사용합니다. API 키는 `.env`, 소스 코드, 채팅 메시지에 저장하지 마세요. 공식 SDK는 `GEMINI_API_KEY` 또는 `GOOGLE_API_KEY`를 지원하며 둘 다 설정되면 `GOOGLE_API_KEY`가 우선합니다.
+`ANTHROPIC_MODEL`은 선택 항목이며 생략하면 비용 우선 모델 `claude-haiku-4-5-20251001`을 사용합니다. API 키는 `.env`, 소스 코드, 채팅 메시지에 저장하지 마세요. `AGENT_SECRET_KEY`는 `/chat` 접근 인증용이며 Claude 기능 키와 다릅니다.
 
 ## Vercel 환경변수
 
 ```powershell
-vercel env add GEMINI_API_KEY production
-vercel env add GEMINI_MODEL production
+vercel env add EVALUATOR_PROVIDER production
+vercel env add ANTHROPIC_API_KEY production
+vercel env add ANTHROPIC_MODEL production
 vercel --prod
 ```
 
-첫 번째 명령의 입력 프롬프트에 API 키 값을 붙여 넣습니다. 키를 변경한 뒤에는 반드시 재배포해야 합니다.
+각 명령의 비밀 입력 프롬프트에 순서대로 `anthropic`, 지급받은 키, 허용된 모델 ID를 입력합니다. 모델을 별도로 안내받지 않았다면 `claude-haiku-4-5-20251001`을 사용합니다. 키 값은 터미널 기록이나 완료 보고에 남기지 마세요. 환경변수를 변경한 뒤에는 반드시 재배포해야 합니다.
 
 공식 문서:
 
+- [Anthropic Python SDK](https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/python)
+- [Claude 구조화 출력](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)
 - [Gemini API 키 설정](https://ai.google.dev/gemini-api/docs/api-key)
 - [Google Gen AI Python SDK](https://googleapis.github.io/python-genai/)
 - [Gemini 구조화 출력](https://ai.google.dev/gemini-api/docs/structured-output)
