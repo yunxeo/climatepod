@@ -79,6 +79,20 @@ vercel --prod
 기존 값을 바꾸려면 `vercel env rm <NAME> production` 후 다시 add 하세요. 등록한 기능용
 변수 **이름만** 완료 보고에 남기고 값은 적지 마세요.
 
+현재 Climatepod 평가기는 다음 Production 변수를 사용합니다.
+
+```bash
+vercel env add EVALUATOR_PROVIDER production  # anthropic
+vercel env add ANTHROPIC_API_KEY production   # 플랫폼에서 지급받은 키
+vercel env add ANTHROPIC_MODEL production     # claude-haiku-4-5-20251001 또는 지정 모델
+vercel --prod
+```
+
+`ANTHROPIC_API_KEY`를 `AGENT_SECRET_KEY`에 넣지 마세요. 전자는 Claude 호출용이고,
+후자는 클라이밋팟 마켓이 `/chat`을 호출할 때 쓰는 별도 인증 키입니다.
+키 값은 사용자가 Vercel의 비밀 입력 프롬프트에 직접 넣고, 소스·Git·채팅·로그에
+남기지 않습니다.
+
 ## 5. API 키 설정 (키를 넣고 싶은 사람이 직접, 두 방법 중 하나)
 
 두 방법 모두 **재배포해야 적용**되고, 어드민에는 같은 값을 (`Bearer` 접두사 없이) 입력합니다.
